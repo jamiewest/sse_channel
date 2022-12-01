@@ -8,5 +8,5 @@ void main() {
     print(message);
   });
 
-  channel.sink.add('{"test": 4536546}');
+  channel.sink.add('Test');
 }

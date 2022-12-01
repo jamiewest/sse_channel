@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:async/async.dart';
 import 'package:http/http.dart' as http;
 import 'package:pool/pool.dart';
 import 'package:sse_channel/sse_channel.dart';
@@ -77,9 +76,9 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
     await _requestPool.withResource(() async {
       try {
         encodedMessage = jsonEncode(message);
-      } on JsonUnsupportedObjectError catch (e) {
+      } on JsonUnsupportedObjectError {
         //_logger.warning('[$_clientId] Unable to encode outgoing message: $e');
-      } on ArgumentError catch (e) {
+      } on ArgumentError {
         //_logger.warning('[$_clientId] Invalid argument: $e');
       }
       try {
@@ -94,11 +93,4 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
       }
     });
   }
-}
-
-class _IOStreamSink extends DelegatingStreamSink implements StreamSink {
-  _IOStreamSink(super.sink);
-
-  @override
-  void add(data) {}
 }
