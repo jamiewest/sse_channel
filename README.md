@@ -1,7 +1,7 @@
 # sse_channel
 
-The `web_socket_channel` package provides [`StreamChannel`][stream_channel]
-wrappers for WebSocket connections. 
+The `sse_channel` package provides [`StreamChannel`][stream_channel]
+wrappers for Server Sent Event connections. 
 
 [stream_channel]: https://pub.dev/packages/stream_channel
 
