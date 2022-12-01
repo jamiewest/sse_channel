@@ -1,7 +1,7 @@
 name: sse_channel
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
-# homepage: https://www.example.com
+description: StreamChannel wrappers for Server Sent Events.
+version: 0.0.1
+repository: https://www.github.com/jamiewest/sse_channel
 
 environment:
   sdk: '>=2.18.4 <3.0.0'
