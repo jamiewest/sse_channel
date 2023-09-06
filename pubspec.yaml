@@ -4,18 +4,16 @@ version: 0.0.3
 repository: https://www.github.com/jamiewest/sse_channel
 
 environment:
-  sdk: '>=2.18.4 <3.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
-  async: ^2.10.0
-  http: ^0.13.5
+  async: ^2.11.0
+  http: ^1.1.0
   pool: ^1.5.1
-  sse: ^4.1.1
+  sse: ^4.1.2
   stream_channel: ^2.1.1
   uuid: ^3.0.7
 
 dev_dependencies:
-  lints: ^2.0.0
-  test: ^1.16.0
-
-
+  lints: ^2.1.1
+  test: ^1.24.4
