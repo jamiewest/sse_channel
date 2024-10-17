@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:pool/pool.dart';
+import 'package:sse_channel/src/sse_client_exception.dart';
 import 'package:sse_channel/sse_channel.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:uuid/uuid.dart';
@@ -20,6 +21,8 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
   late final StreamController<String?> _incomingController;
   late final StreamController<String?> _outgoingController;
   final _onConnected = Completer();
+  late StreamSubscription incomingSubscription;
+  late StreamSubscription outgoingSubscription;
 
   IOSseChannel._(
     Uri serverUrl,
@@ -27,35 +30,43 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
         _clientId = Uuid().v4(),
         _outgoingController = StreamController<String?>() {
     final client = http.Client();
-    _incomingController =
-        StreamController<String?>.broadcast(onListen: () async {
-      final request = http.Request(
-        'GET',
-        _serverUrl.replace(
-          queryParameters: {
-            'sseClientId': _clientId,
-          },
-        ),
-      )..headers['Accept'] = 'text/event-stream';
 
-      await client.send(request).then((response) {
-        if (response.statusCode == 200) {
-          response.stream.transform(EventSourceTransformer()).listen((event) {
-            _incomingController.sink.add(event.data);
-          });
+    final queryParameters = Map<String, String>.from(_serverUrl.queryParameters)
+      ..addAll({'sseClientId': _clientId});
 
-          _onConnected.complete();
-        } else {
-          //incomingController.addError(
-          //   SseClientException('Failed to connect to ${uri.toString()}'));
-        }
-      });
-    }, onCancel: () {
-      _incomingController.close();
-    });
+    _incomingController = StreamController<String?>.broadcast(
+      onListen: () async {
+        final request = http.Request(
+          'GET',
+          _serverUrl.replace(queryParameters: queryParameters),
+        )..headers['Accept'] = 'text/event-stream';
+
+        await client.send(request).then((response) {
+          if (response.statusCode == 200) {
+            incomingSubscription = response.stream
+                .transform(EventSourceTransformer())
+                .listen((event) => _incomingController.sink.add(event.data));
+
+            _onConnected.complete();
+          } else {
+            _incomingController.addError(
+              SseClientException('Failed to connect to $_serverUrl'),
+            );
+          }
+        });
+      },
+      onCancel: () {
+        incomingSubscription.cancel();
+        _incomingController.close();
+
+        outgoingSubscription.cancel();
+        _outgoingController.close();
+      },
+    );
 
     _onConnected.future.whenComplete(
-      () => _outgoingController.stream.listen(_onOutgoingMessage),
+      () => outgoingSubscription =
+          _outgoingController.stream.listen(_onOutgoingMessage),
     );
   }
 
@@ -73,6 +84,7 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
 
   Future<void> _onOutgoingMessage(String? message) async {
     String? encodedMessage;
+
     await _requestPool.withResource(() async {
       try {
         encodedMessage = jsonEncode(message);
@@ -82,9 +94,16 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
         //_logger.warning('[$_clientId] Invalid argument: $e');
       }
       try {
-        final url =
-            '$_serverUrl?sseClientId=$_clientId&messageId=${_lastMessageId++}';
-        await http.post(Uri.parse(url), body: encodedMessage);
+        final queryParameters =
+            Map<String, String>.from(_serverUrl.queryParameters)
+              ..addAll({
+                'sseClientId': _clientId,
+                'messageId': '${_lastMessageId++}',
+              });
+        await http.post(
+          _serverUrl.replace(queryParameters: queryParameters),
+          body: encodedMessage,
+        );
       } catch (error) {
         //final augmentedError =
         //    '[$_clientId] SSE client failed to send $message:\n $error';
