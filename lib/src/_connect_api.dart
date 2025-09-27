@@ -1,6 +1,9 @@
 import 'channel.dart';
+import 'exception.dart';
 
 /// Creates a new Server Sent Events connection.
 SseChannel connect(Uri url) {
-  throw UnsupportedError('No implementation of the connect api provided');
+  throw SseChannelException(
+    'No implementation of the connect API provided for ${url.scheme} URLs.',
+  );
 }

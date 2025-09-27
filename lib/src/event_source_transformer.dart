@@ -1,67 +1,85 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'exception.dart';
+
 typedef RetryIndicator = void Function(Duration retry);
 
 class EventSourceTransformer implements StreamTransformer<List<int>, Event> {
-  RetryIndicator? retryIndicator;
-
   EventSourceTransformer({this.retryIndicator});
+
+  final RetryIndicator? retryIndicator;
 
   @override
   Stream<Event> bind(Stream<List<int>> stream) {
+    late StreamSubscription<String> subscription;
     late StreamController<Event> controller;
-    controller = StreamController(onListen: () {
-      // the event we are currently building
-      var currentEvent = Event();
-      // the regexes we will use later
-      var lineRegex = RegExp(r'^([^:]*)(?::)?(?: )?(.*)?$');
-      var removeEndingNewlineRegex = RegExp(r'^((?:.|\n)*)\n$');
-      // This stream will receive chunks of data that is not necessarily a
-      // single event. So we build events on the fly and broadcast the event as
-      // soon as we encounter a double newline, then we start a new one.
-      stream
-          .transform(Utf8Decoder())
-          .transform(LineSplitter())
-          .listen((String line) {
-        if (line.isEmpty) {
-          // event is done
-          // strip ending newline from data
-          if (currentEvent.data != null) {
-            var match =
-                removeEndingNewlineRegex.firstMatch(currentEvent.data!)!;
-            currentEvent.data = match.group(1);
-          }
-          controller.add(currentEvent);
-          currentEvent = Event();
-          return;
-        }
-        // match the line prefix and the value using the regex
-        Match match = lineRegex.firstMatch(line)!;
-        var field = match.group(1)!;
-        var value = match.group(2) ?? '';
-        if (field.isEmpty) {
-          // lines starting with a colon are to be ignored
-          return;
-        }
-        switch (field) {
-          case 'event':
-            currentEvent.event = value;
-            break;
-          case 'data':
-            currentEvent.data = '${currentEvent.data ?? ''}$value\n';
-            break;
-          case 'id':
-            currentEvent.id = value;
-            break;
-          case 'retry':
-            if (retryIndicator != null) {
-              retryIndicator!(Duration(milliseconds: int.parse(value)));
+
+    controller = StreamController<Event>(
+      onListen: () {
+        var currentEvent = Event();
+        String? lastEventId;
+        final lineRegex = RegExp(r'^([^:]*)(?::)?(?: )?(.*)?$');
+        // This stream will receive chunks of data that are not necessarily a
+        // single event. We build events on the fly and emit them when we
+        // encounter a blank line, then start fresh for the next event.
+        subscription = stream
+            .transform(const Utf8Decoder())
+            .transform(const LineSplitter())
+            .listen(
+          (String line) {
+            if (line.isEmpty) {
+              _dispatchCurrentEvent(controller, currentEvent, lastEventId);
+              currentEvent = Event();
+              return;
             }
-            break;
-        }
-      });
-    });
+
+            final Match match = lineRegex.firstMatch(line)!;
+            final field = match.group(1)!;
+            final value = match.group(2) ?? '';
+
+            if (field.isEmpty) {
+              return;
+            }
+
+            switch (field) {
+              case 'event':
+                currentEvent.event = value;
+                break;
+              case 'data':
+                currentEvent.data = '${currentEvent.data ?? ''}$value\n';
+                break;
+              case 'id':
+                if (!value.contains('\u0000')) {
+                  lastEventId = value;
+                  currentEvent.id = lastEventId;
+                }
+                break;
+              case 'retry':
+                final parsed = int.tryParse(value);
+                if (parsed != null && parsed >= 0 && retryIndicator != null) {
+                  retryIndicator!(Duration(milliseconds: parsed));
+                }
+                break;
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            controller.addError(
+              error is SseChannelException
+                  ? error
+                  : SseChannelException.from(error),
+              stackTrace,
+            );
+          },
+          onDone: () {
+            _dispatchCurrentEvent(controller, currentEvent, lastEventId);
+            controller.close();
+          },
+        );
+      },
+      onCancel: () => subscription.cancel(),
+    );
+
     return controller.stream;
   }
 
@@ -88,4 +106,27 @@ class Event implements Comparable<Event> {
 
   @override
   int compareTo(Event other) => id!.compareTo(other.id!);
+}
+
+void _dispatchCurrentEvent(
+  StreamController<Event> controller,
+  Event currentEvent,
+  String? lastEventId,
+) {
+  final data = currentEvent.data;
+  if (data == null) {
+    return;
+  }
+
+  if (data.isNotEmpty && data.endsWith('\n')) {
+    currentEvent.data = data.substring(0, data.length - 1);
+  }
+
+  currentEvent.event =
+      (currentEvent.event == null || currentEvent.event!.isEmpty)
+          ? 'message'
+          : currentEvent.event;
+
+  currentEvent.id ??= lastEventId;
+  controller.add(currentEvent);
 }

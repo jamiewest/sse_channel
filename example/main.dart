@@ -1,11 +1,12 @@
 import 'package:sse_channel/sse_channel.dart';
 
 void main() {
-  final channel =
-      SseChannel.connect(Uri.parse('http://127.0.0.1:8080/sseHandler'));
+  final channel = SseChannel.connect(
+    Uri.parse('https://sse.dev/test?interval=10'),
+  );
 
-  channel.stream.listen((message) {
-    print(message);
+  channel.stream.listen((event) {
+    print('[${event.event}] ${event.data}');
   });
 
   channel.sink.add('Test');
