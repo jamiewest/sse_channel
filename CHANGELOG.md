@@ -1,3 +1,11 @@
+## 0.2.1
+
+- Added an injectable `IOSseChannel(StreamChannel channel)` constructor so IO
+  clients can supply their own transport (useful for tests or custom proxies)
+  while still reusing the package's reconnection and error handling.
+- Relaxed IO client disposal to play nicely with externally managed HTTP
+  clients when the channel is torn down.
+
 ## 0.2.0
 
 - **Breaking:** `SseChannel.stream` now emits `Event` objects exposing `data`, `event`, and

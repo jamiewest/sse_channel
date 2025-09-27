@@ -14,9 +14,9 @@ final _requestPool = Pool(1000);
 /// endpoint using `package:http`.
 class IOSseChannel extends StreamChannelMixin implements SseChannel {
   int _lastMessageId = -1;
-  final Uri _serverUrl;
+  Uri? _serverUrl;
   final String _clientId;
-  final http.Client _client;
+  http.Client? _client;
   StreamSubscription<Event>? _incomingSubscription;
   StreamSubscription<String?>? _outgoingSubscription;
   late final StreamController<Event> _incomingController;
@@ -28,6 +28,18 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
   String? _lastEventId;
   Duration _retryDelay = const Duration(milliseconds: 3000);
   Timer? _reconnectTimer;
+
+  IOSseChannel(StreamChannel channel) : _clientId = Uuid().v4() {
+    _outgoingController = channel.sink as StreamController<String?>;
+    _incomingController = channel.stream as StreamController<Event>;
+    _incomingController.onListen = _startListening;
+    _incomingController.onCancel = () async {
+      _shouldReconnect = false;
+      _reconnectTimer?.cancel();
+      await _closeIncomingController();
+      await _disposeResources();
+    };
+  }
 
   IOSseChannel._(Uri serverUrl)
     : _serverUrl = serverUrl,
@@ -101,7 +113,7 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
     final request =
         http.Request(
             'GET',
-            _serverUrl.replace(queryParameters: {'sseClientId': _clientId}),
+            _serverUrl!.replace(queryParameters: {'sseClientId': _clientId}),
           )
           ..headers['Accept'] = 'text/event-stream'
           ..headers['Cache-Control'] = 'no-cache';
@@ -111,7 +123,7 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
     }
 
     try {
-      final response = await _client.send(request);
+      final response = await _client!.send(request);
       if (response.statusCode != 200) {
         final error = SseChannelException(
           'Failed to connect to $_serverUrl (status ${response.statusCode})',
@@ -178,7 +190,7 @@ class IOSseChannel extends StreamChannelMixin implements SseChannel {
     _outgoingSubscription = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _client.close();
+    _client?.close();
   }
 
   void _scheduleReconnect() {

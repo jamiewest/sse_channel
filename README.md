@@ -61,6 +61,10 @@ $ dart test -p chrome
 Use `HtmlSseChannel.test` in your own applications to inject a mock stream and
 sink when you need to verify browser-side code without a live SSE endpoint.
 
+On the IO side you can now import `package:sse_channel/io.dart` and construct
+`IOSseChannel` with your own `StreamChannel` to reuse the package's
+reconnection logic while driving it with a fake transport during tests.
+
 ## Platform support
 
 - `dart:io` – uses `package:http` to establish SSE connections and POST
