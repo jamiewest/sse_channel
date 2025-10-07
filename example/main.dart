@@ -1,13 +1,13 @@
 import 'package:sse_channel/sse_channel.dart';
 
-void main() {
-  final channel = SseChannel.connect(
-    Uri.parse('https://sse.dev/test?interval=10'),
-  );
+Future<void> main() async {
+  final url = Uri.parse('http://localhost:8080/sse');
+  final channel = SseChannel.connect(url);
 
-  channel.stream.listen((event) {
-    print('[${event.event}] ${event.data}');
+  await channel.ready;
+
+  channel.stream.listen((message) {
+    channel.sink.add('received!');
+    channel.sink.close(1, "close reason");
   });
-
-  channel.sink.add('Test');
 }

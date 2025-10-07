@@ -1,6 +1,17 @@
+## 0.2.2
+
+- Ensure `SseSink.close` waits for pending outgoing messages so the final payload
+  reaches the server before the connection shuts down.
+- Serialize IO POST requests to preserve outbound message ordering and avoid
+  race conditions when multiple sends happen back-to-back.
+- Unified the implementation into a single `SseChannel` that runs on both VM and
+  web platforms, removing the old IO/HTML split.
+- Document the need to await `SseChannel.ready` in the README quick start and
+  expand integration coverage for the close-after-send flow.
+
 ## 0.2.1
 
-- Added an injectable `IOSseChannel(StreamChannel channel)` constructor so IO
+- Added an injectable `IOSseChannel(StreamChannel<String?> channel)` constructor so IO
   clients can supply their own transport (useful for tests or custom proxies)
   while still reusing the package's reconnection and error handling.
 - Relaxed IO client disposal to play nicely with externally managed HTTP

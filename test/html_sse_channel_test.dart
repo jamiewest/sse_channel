@@ -1,38 +1,29 @@
 @TestOn('browser')
-
 import 'dart:async';
 
-import 'package:sse_channel/html.dart';
 import 'package:sse_channel/sse_channel.dart';
+import 'package:stream_channel/stream_channel.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('HtmlSseChannel', () {
+  group('SseChannel', () {
     late StreamController<String?> incoming;
     late StreamController<String?> outgoing;
     late List<String?> sentMessages;
-    late List<Event> receivedEvents;
-    late HtmlSseChannel channel;
+    late List<MessageEvent> receivedEvents;
+    late SseChannel channel;
     late Completer<void> closed;
 
     setUp(() {
       incoming = StreamController<String?>.broadcast();
       outgoing = StreamController<String?>.broadcast();
       sentMessages = <String?>[];
-      receivedEvents = <Event>[];
+      receivedEvents = <MessageEvent>[];
       closed = Completer<void>();
 
       outgoing.stream.listen(sentMessages.add);
 
-      channel = HtmlSseChannel.test(
-        stream: incoming.stream,
-        sink: outgoing.sink,
-        onClose: () {
-          if (!closed.isCompleted) {
-            closed.complete();
-          }
-        },
-      );
+      channel = SseChannel(StreamChannel(incoming.stream, outgoing.sink));
 
       channel.stream.listen(receivedEvents.add);
     });

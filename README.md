@@ -13,8 +13,10 @@ import 'dart:convert';
 
 import 'package:sse_channel/sse_channel.dart';
 
-void main() {
+Future<void> main() async {
   final channel = SseChannel.connect(Uri.parse('https://sse.dev/test'));
+
+  await channel.ready;
 
   channel.stream.listen(
     (event) {
@@ -28,6 +30,7 @@ void main() {
   );
 
   channel.sink.add(jsonEncode({'type': 'ping'}));
+  await channel.sink.close();
 }
 ```
 
@@ -36,7 +39,7 @@ void main() {
 - **Spec-aligned client.** The IO implementation tracks `Last-Event-ID`, honors
   `retry:` hints, sets `Cache-Control: no-cache`, and reconnects automatically
   using the WHATWG SSE rules.
-- **Rich events.** Streams emit `Event` instances so you retain the payload,
+- **Rich events.** Streams emit `MessageEvent` instances so you retain the payload,
   event name, and identifier metadata that servers send.
 - **Consistent errors.** Both IO and HTML channels surface failures via the same
   `SseChannelException` type, making it simple to detect connection issues.
@@ -62,7 +65,7 @@ Use `HtmlSseChannel.test` in your own applications to inject a mock stream and
 sink when you need to verify browser-side code without a live SSE endpoint.
 
 On the IO side you can now import `package:sse_channel/io.dart` and construct
-`IOSseChannel` with your own `StreamChannel` to reuse the package's
+`IOSseChannel` with your own `StreamChannel<String?>` to reuse the package's
 reconnection logic while driving it with a fake transport during tests.
 
 ## Platform support
@@ -70,7 +73,7 @@ reconnection logic while driving it with a fake transport during tests.
 - `dart:io` – uses `package:http` to establish SSE connections and POST
   responses back to the server.
 - `dart:html` – delegates to `package:sse` in the browser and adapts events to
-  the shared `Event` model.
+  the shared `MessageEvent` model.
 
 ## Resources
 
